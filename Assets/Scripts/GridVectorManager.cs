@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using UnityEngine.ProBuilder;
+using UnityEngine.ProBuilder.MeshOperations;
 
 public class GridVectorManager : MonoBehaviour
 {
@@ -27,7 +29,6 @@ public class GridVectorManager : MonoBehaviour
     [SerializeField] private MeshSubtractor meshSubtractor;
     private GameObject extrudedObject;
     private GameObject extrudedHole;
-
     private Grid grid;
     private List<Vector3Int> vectorPointsList = new List<Vector3Int>();
     private LineRenderer currentLine;
@@ -35,9 +36,17 @@ public class GridVectorManager : MonoBehaviour
     private Vector3Int previousMousePos = new Vector3Int();
     private bool message = false;
     private bool holeMode = false;
+    private ProBuilderMesh pbMeshObj;
+    private ProBuilderMesh pbMeshHole;
 
     private void Start()
     {
+        extrudedObject = new GameObject("ExtrudedObject");
+        pbMeshObj = extrudedObject.AddComponent<ProBuilderMesh>();
+
+        extrudedHole = new GameObject("ExtrudedHole");
+        pbMeshHole = extrudedHole.AddComponent<ProBuilderMesh>();
+        
         grid = GetComponent<Grid>();
         Ui.SetActive(false);
         Ui2.SetActive(false);
@@ -228,6 +237,33 @@ public class GridVectorManager : MonoBehaviour
         }
     }
 
+    public void generateFinalShape()
+    {
+        meshSubtractor.SubtractMesh(extrudedObject, extrudedHole);
+    }
+    
+    public void createcube()
+    {
+        cubecreator(); 
+    }
+    public void cubecreator()
+    {
+
+        // Define the vertices of the cube with coordinates in the range of -5 to 5
+        Vector3[] vertices = new Vector3[]
+        {
+            new Vector3(-5, 5, 5),
+            new Vector3(5, 5, 5),
+            new Vector3(5, -5, 5),
+            new Vector3(-5, -5, 5),
+        };
+
+        // Use CreateShapeFromPolygon to generate the mesh
+        // pbMesh.CreateShapeFromPolygon(vertices, 10.0f, false);
+        //
+        // pbMesh.ToMesh();
+        // pbMesh.Refresh();
+    }
     private IEnumerator GenerateMeshCoroutine()
     {
         progressTracker.StartGeneration();
@@ -251,27 +287,23 @@ public class GridVectorManager : MonoBehaviour
         float width = max.x - min.x;
         float height = max.y - min.y;
         Vector2 center = (min + max) / 2f;
-
-        Mesh mesh = new Mesh();
+        
+        // Define vertices
         Vector3[] vertices = vectorPointsList.Select(p => (Vector3)drawingTilemap.GetCellCenterWorld(p) - (Vector3)center).ToArray();
-        int[] triangles = GenerateTriangles(vertices);
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-
+        
+        // Assign the generated mesh to the appropriate object
         if (!holeMode)
         {
-            Vector3 nCenter = new Vector3(center.x, center.y, 1.0f);
-            extrudedObject = MeshExtruder.ExtrudeMesh(mesh, nCenter, 1.0f, shapeMaterial, "ExtrudedMesh");
+            pbMeshObj.CreateShapeFromPolygon(vertices, 2.0f, false);
+            extrudedObject.transform.position = new Vector3(center.x, center.y, -1f);
+            extrudedObject.GetComponent<MeshRenderer>().material = shapeMaterial;
             holeMode = true;
         }
         else
         {
-            Vector3 holeCenter = new Vector3(center.x, center.y, 0.9f);
-            extrudedHole = MeshExtruder.ExtrudeMesh(mesh, holeCenter, 1.0f, holeMaterial, "ExtrudedHole");
-            //finalShape.GenerateMeshForAnimation(mesh, center, "HoleShape", holeMaterial, 1 );
+            pbMeshHole.CreateShapeFromPolygon(vertices, 2.0f, false);
+            extrudedHole.GetComponent<MeshRenderer>().material = holeMaterial;
+            extrudedHole.transform.position = center;
         }
 
         ResetDrawing();
@@ -280,105 +312,6 @@ public class GridVectorManager : MonoBehaviour
 
         Debug.Log($"Mesh generated at position: {center}, with width: {width}, height: {height}");
         Ui2.SetActive(false);
-
-        
-    }
-    
-    public void generateFinalShape()
-    {
-        meshSubtractor.SubtractMesh(extrudedObject,extrudedHole);
-    }
-
-    private int[] GenerateTriangles(Vector3[] vertices)
-    {
-        List<int> indices = new List<int>();
-
-        int n = vertices.Length;
-        Debug.Log($"Number of points in the shape: {n}");
-        if (n < 3)
-            return indices.ToArray();
-
-        int[] V = new int[n];
-        if (Area(vertices) > 0)
-        {
-            for (int v = 0; v < n; v++) V[v] = v;
-        }
-        else
-        {
-            for (int v = 0; v < n; v++) V[v] = (n - 1) - v;
-        }
-
-        int nv = n;
-        int count = 2 * nv;
-        for (int m = 0, v = nv - 1; nv > 2;)
-        {
-            if ((count--) <= 0) return indices.ToArray();
-
-            int u = v; if (nv <= u) u = 0;
-            v = u + 1; if (nv <= v) v = 0;
-            int w = v + 1; if (nv <= w) w = 0;
-
-            if (Snip(vertices, u, v, w, nv, V))
-            {
-                int a, b, c, s, t;
-                a = V[u]; b = V[v]; c = V[w];
-                indices.Add(a);
-                indices.Add(b);
-                indices.Add(c);
-                for (s = v, t = v + 1; t < nv; s++, t++) V[s] = V[t]; nv--;
-                count = 2 * nv;
-            }
-        }
-
-        indices.Reverse();
-        return indices.ToArray();
-    }
-
-    private float Area(Vector3[] vertices)
-    {
-        int n = vertices.Length;
-        float A = 0.0f;
-        for (int p = n - 1, q = 0; q < n; p = q++)
-        {
-            A += vertices[p].x * vertices[q].y - vertices[q].x * vertices[p].y;
-        }
-        return (A * 0.5f);
-    }
-
-    private bool Snip(Vector3[] vertices, int u, int v, int w, int n, int[] V)
-    {
-        int p;
-        Vector3 A = vertices[V[u]];
-        Vector3 B = vertices[V[v]];
-        Vector3 C = vertices[V[w]];
-        if (Mathf.Epsilon > (((B.x - A.x) * (C.y - A.y)) - ((B.y - A.y) * (C.x - A.x))))
-            return false;
-        for (p = 0; p < n; p++)
-        {
-            if ((p == u) || (p == v) || (p == w)) continue;
-            Vector3 P = vertices[V[p]];
-            if (InsideTriangle(A, B, C, P)) return false;
-        }
-        return true;
-    }
-
-    private bool InsideTriangle(Vector3 A, Vector3 B, Vector3 C, Vector3 P)
-    {
-        float ax, ay, bx, by, cx, cy, apx, apy, bpx, bpy, cpx, cpy;
-        float cCROSSap, bCROSScp, aCROSSbp;
-
-        ax = C.x - B.x; ay = C.y - B.y;
-        bx = A.x - C.x; by = A.y - C.y;
-        cx = B.x - A.x; cy = B.y - A.y;
-        apx = P.x - A.x; apy = P.y - A.y;
-        bpx = P.x - B.x; bpy = P.y - B.y;
-        cpx = P.x - C.x; cpy = P.y - C.y;
-
-        aCROSSbp = ax * bpy - ay * bpx;
-        cCROSSap = cx * apy - cy * apx;
-        bCROSScp = bx * cpy - by * cpx;
-
-        return ((aCROSSbp >= 0.0f) && (bCROSScp >= 0.0f) && (cCROSSap >= 0.0f));
     }
 
     public void ResetDrawing()
