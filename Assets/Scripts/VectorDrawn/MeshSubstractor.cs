@@ -11,6 +11,8 @@ public class MeshSubtractor : MonoBehaviour
 
     public void SubtractMesh(GameObject target, GameObject hole)
     {
+        hole.transform.position = new Vector3(hole.transform.position.x, hole.transform.position.y, 0f);
+
         // Add vertex attributes to the meshes
         MeshUtility.AddVertexAttributes(target.GetComponent<MeshFilter>().mesh);
         MeshUtility.AddVertexAttributes(hole.GetComponent<MeshFilter>().mesh);
@@ -26,7 +28,7 @@ public class MeshSubtractor : MonoBehaviour
 
         // Create a ProBuilderMesh from the resulting mesh
         var pbMesh = ProBuilderMesh.Create(result.mesh.vertices, CreateFacesFromMesh(result.mesh));
-        
+
         pbMesh.sharedVertices = SharedVertex.GetSharedVerticesWithPositions(pbMesh.positions);
 
         // Merge the faces of the ProBuilderMesh
@@ -35,7 +37,18 @@ public class MeshSubtractor : MonoBehaviour
         // Ensure the mesh is updated
         pbMesh.ToMesh();
         pbMesh.Refresh();
-        
+
+        // Assign the material to the resulting mesh
+        var meshRenderer = pbMesh.GetComponent<MeshRenderer>();
+        if (meshRenderer != null && shapeMaterial != null)
+        {
+            meshRenderer.material = shapeMaterial;
+        }
+        else
+        {
+            Debug.LogWarning("No material assigned or MeshRenderer not found.");
+        }
+
         composite = pbMesh.gameObject;
 
         // Log the number of vertices and triangles
@@ -56,28 +69,11 @@ public class MeshSubtractor : MonoBehaviour
     {
         if (composite != null)
         {
-            ProBuilderMesh pbMesh = composite.GetComponent<ProBuilderMesh>();
-
-            if (pbMesh != null)
-            {
-                // Ensure the mesh is updated before exporting
-                pbMesh.ToMesh();
-                pbMesh.Refresh();
-
-                // Export the final mesh to an OBJ file
-                MeshExporter meshExporter = new MeshExporter();
-                meshExporter.ExportMeshToFbx(new Object[] { pbMesh.gameObject }, "Assets/FinalShape.fbx");
-
-                Debug.Log("Shape exported successfully.");
-            }
-            else
-            {
-                Debug.LogError("ProBuilderMesh component not found on the composite object.");
-            }
+            MeshExporter.Instance.ExportComposite(composite);
         }
         else
         {
-            Debug.LogError("Composite object not found. Perform the subtraction first.");
+            Debug.LogError("No hay un objeto compuesto para exportar. Realice la sustracción primero.");
         }
     }
 }

@@ -27,6 +27,9 @@ public class GridVectorManager : MonoBehaviour
     [SerializeField] private Material shapeMaterial;
     [SerializeField] private Material holeMaterial;
     [SerializeField] private MeshSubtractor meshSubtractor;
+    public static float areaInicial;
+    [SerializeField] private float areaHueco;
+    public static float areatotal; // Variable para almacenar el área total
     private GameObject extrudedObject;
     private GameObject extrudedHole;
     private Grid grid;
@@ -46,7 +49,7 @@ public class GridVectorManager : MonoBehaviour
 
         extrudedHole = new GameObject("ExtrudedHole");
         pbMeshHole = extrudedHole.AddComponent<ProBuilderMesh>();
-        
+
         grid = GetComponent<Grid>();
         Ui.SetActive(false);
         Ui2.SetActive(false);
@@ -62,73 +65,88 @@ public class GridVectorManager : MonoBehaviour
 
     private void Update()
     {
-        Vector3Int mousePos = GetMousePosition();
+    Vector3Int mousePos = GetMousePosition();
 
-        if (message != true)
+    if (message != true)
+    {
+        if (!mousePos.Equals(previousMousePos))
         {
-            if (!mousePos.Equals(previousMousePos))
-            {
-                highlightTilemap.SetTile(previousMousePos, null);
-                if (!holeMode)
-                {
-                    if (cameraController.IsWithinPlacementRadius(drawingTilemap.GetCellCenterWorld(mousePos)))
-                    {
-                        highlightTilemap.SetTile(mousePos, hoverTile);
-                    }
-                    else
-                    {
-                        highlightTilemap.SetTile(mousePos, hoverOutofBonds);
-                        Debug.Log("Point is outside the allowed placement radius.");
-                    }
-                }
-                else
-                {
-                    highlightTilemap.SetTile(mousePos, hoverTileHole);
-                }
-                previousMousePos = mousePos;
-            }
-
-            if (Input.GetMouseButtonDown(0))
-            {
-                Vector3 worldMousePos = drawingTilemap.GetCellCenterWorld(mousePos);
-                if (cameraController.IsWithinPlacementRadius(worldMousePos))
-                {
-                    Vector3Int? existingPoint = FindExistingPoint(mousePos);
-                    if (existingPoint.HasValue)
-                    {
-                        mousePos = existingPoint.Value;
-                        if (vectorPointsList.Count > 2 && mousePos == vectorPointsList[0])
-                        {
-                            message = true;
-                            Debug.Log("completado");
-                            UpdateLine();
-                            return;
-                        }
-                    }
-
-                    if (!vectorPointsList.Contains(mousePos))
-                    {
-                        PlaceVectorPoint(mousePos);
-                        UpdateLine();
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning("Point is outside the allowed placement radius.");
-                }
-            }
-        }
-
-        if (message)
-        {
-            Ui.SetActive(true);
             highlightTilemap.SetTile(previousMousePos, null);
+            if (!holeMode)
+            {
+                if (cameraController.IsWithinPlacementRadius(drawingTilemap.GetCellCenterWorld(mousePos)))
+                {
+                    highlightTilemap.SetTile(mousePos, hoverTile);
+                }
+                else
+                {
+                    highlightTilemap.SetTile(mousePos, hoverOutofBonds);
+                    Debug.Log("Point is outside the allowed placement radius.");
+                }
+            }
+            else
+            {
+                highlightTilemap.SetTile(mousePos, hoverTileHole);
+            }
+            previousMousePos = mousePos;
         }
-        else
+
+        if (Input.GetMouseButtonDown(0))
         {
-            Ui.SetActive(false);
+            Vector3 worldMousePos = drawingTilemap.GetCellCenterWorld(mousePos);
+            if (cameraController.IsWithinPlacementRadius(worldMousePos))
+            {
+                Vector3Int? existingPoint = FindExistingPoint(mousePos);
+                if (existingPoint.HasValue)
+                {
+                    mousePos = existingPoint.Value;
+                    if (vectorPointsList.Count > 2 && mousePos == vectorPointsList[0])
+                    {
+                        message = true;
+                        Debug.Log("completado");
+                        UpdateLine();
+                        
+                        if (!holeMode)
+                        {
+                            // Calcular el área de la figura inicial
+                            areaInicial = CalculatePolygonArea(vectorPointsList);
+                            Debug.Log("Área inicial: " + areaInicial + " unidades cuadradas");
+                        }
+                        
+                        if (holeMode)
+                        {
+                            // Calcular el área del hueco si está en modo hueco
+                            areaHueco = CalculatePolygonArea(vectorPointsList);
+                            Debug.Log("Área del hueco: " + areaHueco + " unidades cuadradas");
+                        }
+                        
+                        return;
+                    }
+                }
+
+                if (!vectorPointsList.Contains(mousePos))
+                {
+                    PlaceVectorPoint(mousePos);
+                    UpdateLine();
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Point is outside the allowed placement radius.");
+            }
         }
     }
+
+    if (message)
+    {
+        Ui.SetActive(true);
+        highlightTilemap.SetTile(previousMousePos, null);
+    }
+    else
+    {
+        Ui.SetActive(false);
+    }
+}
 
     private Vector3Int GetMousePosition()
     {
@@ -239,12 +257,31 @@ public class GridVectorManager : MonoBehaviour
 
     public void generateFinalShape()
     {
+        // Verificar si las áreas se calcularon correctamente
+        if (areaInicial <= 0)
+        {
+            Debug.LogError("El área inicial no se calculó correctamente o es 0.");
+            return;
+        }
+
+        if (areaHueco <= 0)
+        {
+            Debug.LogError("El área del hueco no se calculó correctamente o es 0.");
+            return;
+        }
+
+        // Realizar la resta
+        areatotal = areaInicial - areaHueco;
+
+        // Llamar al método de sustracción de mallas
         meshSubtractor.SubtractMesh(extrudedObject, extrudedHole);
+
+        Debug.Log("Fin de generateFinalShape, con un area de " + areatotal + " unidades cuadradas");
     }
-    
+
     public void createcube()
     {
-        cubecreator(); 
+        cubecreator();
     }
     public void cubecreator()
     {
@@ -287,16 +324,16 @@ public class GridVectorManager : MonoBehaviour
         float width = max.x - min.x;
         float height = max.y - min.y;
         Vector2 center = (min + max) / 2f;
-        
+
         // Define vertices
         Vector3[] vertices = vectorPointsList.Select(p => (Vector3)drawingTilemap.GetCellCenterWorld(p) - (Vector3)center).ToArray();
-        
+
         // Assign the generated mesh to the appropriate object
         if (!holeMode)
         {
             pbMeshObj.CreateShapeFromPolygon(vertices, 2.0f, false);
-            extrudedObject.transform.position = new Vector3(center.x, center.y, -1f);
             extrudedObject.GetComponent<MeshRenderer>().material = shapeMaterial;
+            extrudedObject.transform.position = center;
             holeMode = true;
         }
         else
@@ -330,5 +367,28 @@ public class GridVectorManager : MonoBehaviour
         }
         drawingTilemap.ClearAllTiles();
         highlightTilemap.ClearAllTiles();
+    }
+
+    private float CalculatePolygonArea(List<Vector3Int> points)
+    {
+        if (points.Count < 3)
+        {
+            Debug.LogWarning("No hay suficientes puntos para calcular el área.");
+            return 0f;
+        }
+
+        float area = 0f;
+        int n = points.Count;
+
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 current = (Vector2)drawingTilemap.GetCellCenterWorld(points[i]);
+            Vector2 next = (Vector2)drawingTilemap.GetCellCenterWorld(points[(i + 1) % n]);
+
+            area += current.x * next.y - next.x * current.y;
+        }
+
+        area = Mathf.Abs(area) / 2f;
+        return area;
     }
 }
