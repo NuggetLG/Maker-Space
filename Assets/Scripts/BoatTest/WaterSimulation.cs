@@ -17,7 +17,11 @@ public class WaterSimulation : MonoBehaviour
     [SerializeField]
     private float angularDragCoefficient = 0.5f; // Coeficiente de resistencia angular
     [SerializeField]
+    private float depth; // Profundidad umbral
+    [SerializeField]
     private float depthThreshold = 0.5f; // Profundidad umbral
+    [SerializeField]
+    private GameManager gameManager; // Profundidad umbral
 
 
     private void OnTriggerStay(Collider other)
@@ -61,11 +65,16 @@ public class WaterSimulation : MonoBehaviour
             // Calcular la profundidad relativa del objeto en el agua
             float waterTop = waterCollider.bounds.max.y; // Borde superior del agua
             float objectBottom = boatCollider.bounds.min.y; // Borde inferior del objeto
-            float depth = Mathf.Clamp01((waterTop - objectBottom) / waterCollider.bounds.size.y);
+            depth = Mathf.Clamp01((waterTop - objectBottom) / waterCollider.bounds.size.y);
             
             // Activar el bool si la profundidad supera el umbral
+
+            if (depth >= depthThreshold)
+            {
+                gameManager.GameOver = true;
+                baseWaterDensity = 0.2f;
+            }
             
-            GameManager.GameOver = depth >= depthThreshold;
             
             // Rotación adicional basada en horizontalCenterOfMass
             float centerOfMassTorque = -(boat.horizontalCenterOfMass * 90f); // Torque proporcional a -90° a 90°

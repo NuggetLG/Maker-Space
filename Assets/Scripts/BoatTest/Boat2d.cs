@@ -23,6 +23,12 @@ public class Boat2d : MonoBehaviour
         // Calcular la longitud del barco
         boatLength = GetComponent<Collider>().bounds.size.x;
     }
+    
+    private void FixedUpdate()
+    {
+        transform.rotation = Quaternion.Euler(0, 0, transform.rotation.eulerAngles.z);
+        transform.position = new Vector3(transform.position.x, transform.position.y, -3);
+    }
 
     public void AddMassAndRecalculateCenterOfMass(float addedMass, Vector3 addedPosition)
     {
@@ -40,7 +46,7 @@ public class Boat2d : MonoBehaviour
         rb.centerOfMass = weightedPositionSum / totalMass;
 
         // Recalcular el centro de masa horizontal normalizado
-        horizontalCenterOfMass = (CalculateHorizontalCenterOfMass())*10f;
+        horizontalCenterOfMass = (CalculateHorizontalCenterOfMass());
     }
 
     private float CalculateHorizontalCenterOfMass()

@@ -326,11 +326,16 @@ public class GridVectorManager : MonoBehaviour
         Vector2 center = (min + max) / 2f;
 
         // Define vertices
-        Vector3[] vertices = vectorPointsList.Select(p => (Vector3)drawingTilemap.GetCellCenterWorld(p) - (Vector3)center).ToArray();
-
+        Vector3[] vertices = vectorPointsList
+            .Select(p => new Vector3(drawingTilemap.GetCellCenterWorld(p).x - center.x, 
+                drawingTilemap.GetCellCenterWorld(p).y - center.y, 
+                0))
+            .ToArray();
+        
         // Assign the generated mesh to the appropriate object
         if (!holeMode)
         {
+            vertices = EnsureClockwiseOrder(vertices);
             pbMeshObj.CreateShapeFromPolygon(vertices, 2.0f, false);
             extrudedObject.GetComponent<MeshRenderer>().material = shapeMaterial;
             extrudedObject.transform.position = center;
@@ -338,6 +343,7 @@ public class GridVectorManager : MonoBehaviour
         }
         else
         {
+            vertices = EnsureClockwiseOrder(vertices);
             pbMeshHole.CreateShapeFromPolygon(vertices, 2.0f, false);
             extrudedHole.GetComponent<MeshRenderer>().material = holeMaterial;
             extrudedHole.transform.position = center;
@@ -367,6 +373,26 @@ public class GridVectorManager : MonoBehaviour
         }
         drawingTilemap.ClearAllTiles();
         highlightTilemap.ClearAllTiles();
+    }
+    
+    private Vector3[] EnsureClockwiseOrder(Vector3[] vertices)
+    {
+        float sum = 0f;
+
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 current = vertices[i];
+            Vector3 next = vertices[(i + 1) % vertices.Length];
+            sum += (next.x - current.x) * (next.y + current.y);
+        }
+
+        // Si el área es negativa, los vértices están en sentido antihorario, así que los invertimos
+        if (sum > 0)
+        {
+            System.Array.Reverse(vertices);
+        }
+
+        return vertices;
     }
 
     private float CalculatePolygonArea(List<Vector3Int> points)

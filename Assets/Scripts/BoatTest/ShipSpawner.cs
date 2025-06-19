@@ -16,6 +16,7 @@ public class ShipSpawner : MonoBehaviour
 
     private void Awake()
     {
+        canvas.SetActive(true);
         StartCoroutine(CountdownAndSpawn());
     }
 

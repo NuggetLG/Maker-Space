@@ -44,4 +44,14 @@ public class LevelManager : MonoBehaviour
         yield return new WaitForSeconds(transitionTime);
         SceneManager.LoadScene(levelIndex);
     }
+    
+    public void ReloadCurrentLevel()
+    {
+        StartCoroutine(LoadLevel(SceneManager.GetActiveScene().buildIndex));
+    }
+    
+    public void LoadLevelByIndex(float levelIndex)
+    {
+        StartCoroutine(LoadLevel(Mathf.FloorToInt(levelIndex)));
+    }
 }

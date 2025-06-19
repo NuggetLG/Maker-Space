@@ -11,14 +11,15 @@ public class ClawController : MonoBehaviour
 
     private GameObject currentObject; // Objeto actual en la pinza
     private int currentIndex = 0; // Índice del objeto actual
-    private bool isCooldown = false; // Indica si está en cooldown
-    
+    private bool isObjectAttached = false; // Indica si el objeto se acopló exitosamente
+
     [SerializeField]
     private float offsetAboveCenterOfMass; // Distancia fija por encima del centro de masa
-    
+
     [SerializeField]
     private float minHeight;
-
+    [SerializeField]
+    private GameManager gameManager;
 
     private void Start()
     {
@@ -30,7 +31,7 @@ public class ClawController : MonoBehaviour
         // Movimiento horizontal de la pinza
         float move = Input.GetAxis("Horizontal"); // Usa las teclas A y D
         transform.Translate(Vector3.right * move * moveSpeed * Time.deltaTime);
-        
+
         // Ajustar la posición vertical usando un Raycast
         RaycastHit hit;
         if (Physics.Raycast(transform.position, Vector3.down, out hit))
@@ -44,13 +45,11 @@ public class ClawController : MonoBehaviour
                     transform.position.z
                 );
                 transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * moveSpeed);
-                Debug.Log($"Raycast Hit: {hit.point}, Target Height: {targetHeight}");
-                Debug.Log(targetPosition);
             }
         }
-        
+
         // Soltar el objeto
-        if (Input.GetKeyDown(dropKey) && currentObject != null && !isCooldown)
+        if (Input.GetKeyDown(dropKey) && currentObject != null)
         {
             DropObject();
         }
@@ -58,14 +57,14 @@ public class ClawController : MonoBehaviour
 
     private void SpawnNextObject()
     {
-        if (currentObject != null) return; // Asegurarse de que no haya un objeto activo
+        if (currentObject != null) return; // Asegurarse de que no haya un objeto activo o acoplado
 
-        // Seleccionar el siguiente prefab
-        currentIndex = (currentIndex + 1) % objectPrefabs.Length;
+        // Instanciar el nuevo objeto
         currentObject = Instantiate(objectPrefabs[currentIndex], clawPosition.position, Quaternion.identity);
-
-        // Hacer que el objeto siga la pinza
+        
         currentObject.transform.SetParent(clawPosition);
+        currentObject.transform.localRotation = Quaternion.Euler(0, 180, 0);
+
 
         // Configurar el Rigidbody
         Rigidbody rb = currentObject.GetComponent<Rigidbody>();
@@ -74,6 +73,8 @@ public class ClawController : MonoBehaviour
             rb.useGravity = false; // Desactivar gravedad inicialmente
             rb.isKinematic = true; // Desactivar físicas
         }
+
+        Debug.Log(currentObject.name + " ha sido generado.");
     }
 
     private void DropObject()
@@ -86,18 +87,32 @@ public class ClawController : MonoBehaviour
             rb.useGravity = true; // Activar gravedad
             rb.isKinematic = false; // Activar físicas
         }
-
-        currentObject = null; // Limpiar referencia al objeto actual
-
-        // Iniciar cooldown antes de generar el siguiente objeto
-        StartCoroutine(CooldownBeforeSpawn());
     }
 
-    private IEnumerator CooldownBeforeSpawn()
-    {
-        isCooldown = true; // Activar cooldown
-        yield return new WaitForSeconds(cooldownTime); // Esperar el tiempo de cooldown
+    public void OnObjectAttached()
+    { 
+        Debug.Log("fue 1");
+        // Verificar si se llegó al último objeto
+        if (currentIndex == objectPrefabs.Length - 1)
+        {
+            gameManager.Conteo();
+            return; // No generar más objetos
+        }
+
+        // Seleccionar el siguiente prefab
+        currentIndex = (currentIndex + 1) % objectPrefabs.Length;
+        Debug.Log("fue 3");
+
+        isObjectAttached = true;
+        currentObject = null; // Limpiar referencia al objeto actual
         SpawnNextObject(); // Generar el siguiente objeto
-        isCooldown = false; // Desactivar cooldown
+    }
+    
+    public void OnObjectfailed()
+    {
+        // Llamado por AttachBoat cuando el objeto se acople exitosamente
+        isObjectAttached = false;
+        currentObject = null; // Limpiar referencia al objeto actual
+        SpawnNextObject(); // Generar el siguiente objeto
     }
 }
